@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鸿门惊变｜线上历史剧本杀</title>
+<style>
+*{box-sizing:border-box;font-family:"Microsoft Yahei",sans-serif;}
+body{background:#1a1a1a;color:#f0e9d8;padding:20px;margin:0;}
+.container{max-width:900px;margin:0 auto;}
+.title{text-align:center;font-size:32px;color:#d4af37;margin-bottom:8px;}
+.subtitle{text-align:center;color:#aaa;margin-bottom:30px;}
+.card{background:#2b2b2b;border:1px solid #555;border-radius:10px;padding:20px;margin:15px 0;}
+input{padding:8px;width:100%;margin:6px 0;font-size:16px;}
+button{padding:12px 18px;margin:8px;background:#444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;}
+button:hover{background:#d4af37;color:#111;}
+.host-btn{background:#6b4c00;}
+.secret{background:#422020;padding:12px;border-left:4px solid #c83030;margin:10px 0;}
+.hide{display:none;}
+.result{font-size:20px;color:#ffd700;text-align:center;}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="title">鸿门惊变</div>
+    <div class="subtitle">历史阵营剧本杀｜公元前206 · 鸿门之宴</div>
+
+    <!-- 首页 -->
+    <div id="homePage" class="card">
+        <h3>请选择身份</h3>
+        <button onclick="gotoHost()">🎭 主持人（创建房间分配角色）</button>
+        <button onclick="gotoPlayer()">🎮 玩家（查看自己的剧本）</button>
+    </div>
+
+    <!-- 主持人页面：创建房间、录入玩家、随机分配角色 -->
+    <div id="hostPage" class="card hide">
+        <h2>主持人后台</h2>
+        <p>输入7位玩家姓名（一行一个）</p>
+        <textarea id="playerNames" rows="7" style="width:100%;background:#222;color:#fff;">
+甲
+乙
+丙
+丁
+戊
+己
+庚
+        </textarea>
+        <br>
+        <button class="host-btn" onclick="createRoom()">✅ 创建房间 + 随机分配角色</button>
+        <button onclick="resetRoom()">🔄 重置本局（清空房间）</button>
+        <div id="assignResult"></div>
+        <hr>
+        <h3>游戏阶段控制</h3>
+        <button onclick="setStage(1)">阶段1：个人读本（5min）</button>
+        <button onclick="setStage(2)">阶段2：私聊博弈（15min）</button>
+        <button onclick="setStage(3)">阶段3：公堂对质（15min）</button>
+        <button onclick="setStage(4)">阶段4：投票抉择</button>
+        <hr>
+        <h3>结局判定</h3>
+        <label><input type="radio" name="caowu" id="caowuY">曹无伤被揪出</label>
+        <label><input type="radio" name="caowu" id="caowuN">曹无伤隐藏成功</label>
+        <br>
+        <button onclick="endGame('kill')">项羽选择：诛杀刘邦</button>
+        <button onclick="endGame('release')">项羽选择：放刘邦归去</button>
+        <div class="result" id="endingText"></div>
+        <br>
+        <button onclick="backHome()">返回首页</button>
+    </div>
+
+    <!-- 玩家页面：输入名字，获取自己角色剧本 -->
+    <div id="playerPage" class="card hide">
+        <h2>玩家入口</h2>
+        <p>输入你的名字，获取你的秘密身份</p>
+        <input id="myName" placeholder="输入主持人登记的你的名字">
+        <button onclick="getMyRole()">查看我的剧本</button>
+        <div id="playerRoleBox" class="hide">
+            <h2 id="roleName"></h2>
+            <div id="roleInfo"></div>
+            <div class="secret">
+                <h4>🔒 你的秘密任务（不要给其他人看！）</h4>
+                <div id="secretTask"></div>
+            </div>
+        </div>
+        <br>
+        <button onclick="backHome()">返回首页</button>
+    </div>
+</div>
+
+<script>
+//角色库
+const roleData = {
+    xiangyu:{
+        name:"项羽｜西楚霸王",
+        info:"你的立场：摇摆中立，重颜面、厌阴谋、爱惜名声。\n已知信息：\n1.刘邦想要占据关中称王，触怒于你。\n2.亚父范增一直不断劝说你杀掉刘邦。\n3.叔父项伯举止诡异，似乎暗中私通敌方。\n4.有人告密，你才得知刘邦想要称王的野心。",
+        task:"你不想背负诛杀有功诸侯的恶名，那样会失去天下人心。你可以杀刘邦，但必须要有正当理由。全程保持怀疑，不要轻易被其他人说服。\n✅胜利条件：做出符合霸主格局的抉择，保全名声，稳定军心。"
+    },
+    liubang:{
+        name:"刘邦｜沛公",
+        info:"你的立场：求生隐忍，示弱保命。\n已知信息：\n1.项羽兵力远胜于你，正面交战必败。\n2.范增一心想要除掉你。\n3.张良、樊哙对你绝对忠心。\n4.你的军营里面出现内奸告密，把你推入这场死局。",
+        task:"全程谦卑示弱，消除项羽的杀心；分辨谁是敌人、谁可以帮助你。核心目标：活着离开鸿门！\n✅胜利条件：成功脱身，保住性命。"
+    },
+    fazeng:{
+        name:"范增｜亚父",
+        info:"你的立场：必杀刘邦，绝不妥协。\n已知信息：\n1.刘邦外表隐忍，内心狡诈；今日不除，将来必定夺取项氏天下。\n2.项羽心软，优柔寡断。\n3.项庄可以舞剑伺机刺杀，但需要项羽默许。\n4.楚军之中有人暗中包庇刘邦。",
+        task:"用尽所有证据与话术，说服项羽诛杀刘邦；找出暗中袒护刘邦之人。\n✅胜利条件：促成项羽下令诛杀刘邦。"
+    },
+    zhangliang:{
+        name:"张良｜汉谋臣",
+        info:"你的立场：死保主公，寻找翻盘机会。\n已知信息：\n1.项伯受过你的救命之恩，愿意暗中相助。\n2.范增步步紧逼，杀机四伏。\n3.樊哙可以临场以气势震慑楚军。",
+        task:"串联一切可以利用的人脉，为主公铺路；掩盖刘邦称王的野心，化解危机，找出告密的内奸。\n✅胜利条件：主公成功活命，揪出曹无伤。"
+    },
+    xiangbo:{
+        name:"项伯｜楚宗室",
+        info:"你的立场：明属楚军，暗中庇护刘邦，双面身份。\n已知信息：\n1.张良曾经救过你的性命，你必须保全刘邦。\n2.范增计划在宴会之上除掉刘邦。\n3.一旦项羽发现你私通敌方，你会被立刻处死。",
+        task:"表面服从项羽、遵守楚军军令；私下悄悄帮刘邦化解危机，全程隐藏你的双面身份，不能暴露。\n✅胜利条件：刘邦顺利逃走，你的秘密不被戳穿。"
+    },
+    fankui:{
+        name:"樊哙｜沛公猛将",
+        info:"你的立场：死护主公，刚直勇猛。\n已知信息：\n1.营帐之内杀机暗藏，单纯游说很难破局，必要时候需要用气势震慑楚军。\n2.范增等谋臣刻意针对沛公。",
+        task:"关键时刻出面强势发言，震慑全场，打断刺杀计划，不惜性命护住主公。\n✅胜利条件：用自身气场稳住局面，保护主公安全。"
+    },
+    caowushang:{
+        name:"曹无伤｜左司马【内奸】",
+        info:"你的立场：背汉投楚，挑拨双方矛盾。\n已知信息：\n1.是你向项羽告密，揭发刘邦打算称王关中，引发鸿门危机。\n2.你想要投靠项羽，谋求未来的前程。\n3.一旦身份被揭穿，你将性命不保。",
+        task:"公开发言不断抹黑刘邦，坐实他谋反的罪名，煽动项羽与范增杀刘邦。伪装成普通部下，千万不要暴露告密者身份。\n✅胜利条件：身份不被识破，且刘邦被诛杀或扣留。"
+    }
+}
+const roleKeys = ["xiangyu","liubang","fazeng","zhangliang","xiangbo","fankui","caowushang"];
+
+//页面切换
+function backHome(){
+    document.getElementById("homePage").classList.remove("hide");
+    document.getElementById("hostPage").classList.add("hide");
+    document.getElementById("playerPage").classList.add("hide");
+}
+function gotoHost(){
+    document.getElementById("homePage").classList.add("hide");
+    document.getElementById("hostPage").classList.remove("hide");
+}
+function gotoPlayer(){
+    document.getElementById("homePage").classList.add("hide");
+    document.getElementById("playerPage").classList.remove("hide");
+}
+
+//主持人：创建房间，随机分配角色
+function createRoom(){
+    const txt = document.getElementById("playerNames").value;
+    const names = txt.split("\n").map(s=>s.trim()).filter(s=>s!=='');
+    if(names.length!==7){
+        alert("必须填写7位玩家姓名！");
+        return;
+    }
+    //洗牌打乱角色
+    let shuffled = [...roleKeys];
+    for(let i=shuffled.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [shuffled[i],shuffled[j]] = [shuffled[j],shuffled[i]];
+    }
+    const room = {};
+    for(let i=0;i<7;i++){
+        room[names[i]] = shuffled[i];
+    }
+    localStorage.setItem("hongmenRoom", JSON.stringify(room));
+    let html = "<h4>✅角色分配完成（仅主持人可见）</h4>";
+    for(let n in room){
+        html += `<div>${n} → ${roleData[room[n]].name}</div>`;
+    }
+    document.getElementById("assignResult").innerHTML = html;
+    alert("房间创建成功！把链接发给所有玩家，玩家输入自己名字即可获取剧本");
+}
+
+//玩家读取自己角色
+function getMyRole(){
+    const myName = document.getElementById("myName").value.trim();
+    const roomStr = localStorage.getItem("hongmenRoom");
+    if(!roomStr){
+        alert("房间尚未创建，请等待主持人创建房间！");
+        return;
+    }
+    const room = JSON.parse(roomStr);
+    if(!room[myName]){
+        alert("找不到该玩家名字，请核对名字，由主持人录入！");
+        return;
+    }
+    const rid = room[myName];
+    const r = roleData[rid];
+    document.getElementById("roleName").innerText = r.name;
+    document.getElementById("roleInfo").innerText = r.info;
+    document.getElementById("secretTask").innerText = r.task;
+    document.getElementById("playerRoleBox").classList.remove("hide");
+}
+
+//重置房间
+function resetRoom(){
+    localStorage.removeItem("hongmenRoom");
+    document.getElementById("assignResult").innerHTML="";
+    document.getElementById("endingText").innerText="";
+    alert("房间已清空，可以重新创建新一局");
+}
+
+//阶段提示
+function setStage(num){
+    let text = "";
+    if(num===1) text="【阶段1：个人读本｜5分钟】所有人查看自己角色剧本，禁止交流，严禁偷看别人角色！";
+    if(num===2) text="【阶段2：私聊博弈｜15分钟】自由私聊，游说结盟，套取情报，谋划策略。";
+    if(num===3) text="【阶段3：公堂对质｜15分钟】全员公麦发言，每个人1~2分钟，互相质询。";
+    if(num===4) text="【阶段4：投票抉择】匿名投票找出内奸曹无伤；项羽做出最终决定！";
+    alert(text);
+}
+
+//结局结算
+function endGame(choice){
+    let findCao = document.getElementById("caowuY").checked;
+    let resText = "";
+    if(choice==="kill"){
+        resText="\n===结局1：霸王决断·诛杀刘邦（范增获胜）===\n项羽采纳范增的提议，当场诛杀刘邦。\n汉集团群龙无首，楚汉争霸不复存在，项羽掌控天下，历史改写。"
+    }else{
+        if(findCao){
+            resText="\n===结局3：内奸曝光·无伤伏诛===\n众人成功识破曹无伤内奸身份！刘邦脱身返回霸上后立刻诛杀曹无伤。鸿门危机化解，汉方得以喘息，进入楚汉相争。"
+        }else{
+            resText="\n===结局2：优柔失策·纵虎归山【正史结局】===\n项羽放刘邦离去，错失唯一斩杀对手的机会。\n数年之后，刘邦积蓄力量，垓下合围，霸王乌江自刎。"
+        }
+    }
+    document.getElementById("endingText").innerText = resText;
+}
+</script>
+</body>
+</html>
